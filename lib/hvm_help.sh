@@ -166,7 +166,11 @@ HVM_Image_Finalise() {
 	echo "Export"
 	zpool export $HVMtmprpool
 
-	$SRCDIR/../bin/zpool_patch -v ${HVMdisk}s$slice "$blk" "$phys" "$devid"
+	case $flags in
+		*-nopatch*)		;;
+		*)		$SRCDIR/../bin/zpool_patch -v ${HVMdisk}s$slice \
+				    "$blk" "$phys" "$devid" ;;
+    esac
 
 	case $flags in
 		*-keeplofi*)	;;

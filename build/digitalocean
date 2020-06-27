@@ -1,0 +1,64 @@
+#!/bin/bash
+#
+# {{{ CDDL HEADER
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source. A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+# }}}
+#
+# Copyright 2020 Oxide Computer Company
+#
+
+SRCDIR=`dirname $0`
+[ ${SRCDIR:0:1} = "/" ] || SRCDIR=`pwd`/$SRCDIR
+
+. $SRCDIR/../lib/hvm_help.sh
+
+[ -z "$BUILDSEND_MP" ] && BUILDSEND_MP=/kayak_image
+
+find_zfssend
+[ ! -f $ZFSSEND ] && echo "ZFS Image ($ZFSSEND) missing" && exit
+
+set -e
+
+customise() {
+    log "... fixing DNS ... "
+    SetDNS
+
+    log "... updating the image ... "
+    pkg -R "$ALTROOT" update --deny-new-be
+
+    log "... including metadata thing ... "
+    cp /var/tmp/metadata "$ALTROOT/usr/lib/digitalocean"
+    chmod 0755 "$ALTROOT/usr/lib/digitalocean"
+    mkdir "$ALTROOT/root/.ssh"
+    Postboot '/usr/lib/digitalocean'
+
+    # XXX Can we not just fix this before boxing it up?
+    Postboot 'zfs set mountpoint=/rpool rpool'
+    Postboot 'rmdir /HVMdigitaloceanrpool || true'
+}
+
+HVM_Image_Init 2G rpool digitalocean omnios-r$VERSION
+HVM_Image_Build "-fd -o ashift=12" $ZFSSEND omnios customise
+HVM_Image_Finalise '' '' '' '' -nopatch -keeplofi
+
+echo "Creating raw disk image"
+
+raw="$BUILDSEND_MP/digitalocean-$VERSION.raw"
+rm -f "$raw"
+dd if="$HVMlofi" of="$raw" bs=2048
+lofiadm -d "$HVMlofi"
+zfs destroy -r "$HVMdataset"
+
+rm -f "$raw.gz"
+gzip --best "$raw"
+
+# Vim hints
+# vim:ts=4:sw=4:et:fdm=marker
