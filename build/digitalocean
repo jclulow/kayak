@@ -37,8 +37,13 @@ customise() {
     log "... including metadata thing ... "
     cp /var/tmp/metadata "$ALTROOT/usr/lib/digitalocean"
     chmod 0755 "$ALTROOT/usr/lib/digitalocean"
+    cp /var/tmp/metadata.xml \
+        "$ALTROOT/lib/svc/manifest/system/digitalocean.xml"
+
+    log "... fixing up SSH configuration ... "
     mkdir "$ALTROOT/root/.ssh"
-    Postboot '/usr/lib/digitalocean'
+    sed -i -e 's%^PermitRootLogin.*%PermitRootLogin without-password%' \
+        "$ALTROOT/etc/ssh/sshd_config"
 
     # XXX Can we not just fix this before boxing it up?
     Postboot 'zfs set mountpoint=/rpool rpool'
