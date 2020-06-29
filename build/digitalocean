@@ -28,24 +28,45 @@ find_zfssend
 set -e
 
 customise() {
-    log "... fixing DNS ... "
+    #
+    # Enable DNS resolution without providing any resolver addresses.  Those
+    # will be set from the metadata provided by the hypervisor.
+    #
+    log "...enabling DNS resolution"
     SetDNS
 
-    log "... updating the image ... "
+    log "...updating the image"
     pkg -R "$ALTROOT" update --deny-new-be
 
-    log "... including metadata thing ... "
-    cp /var/tmp/metadata "$ALTROOT/usr/lib/digitalocean"
-    chmod 0755 "$ALTROOT/usr/lib/digitalocean"
+    #
+    # XXX This should be an IPS package.
+    #
+    log "...installing metadata agent"
     cp /var/tmp/metadata.xml \
         "$ALTROOT/lib/svc/manifest/system/digitalocean.xml"
+    cp /var/tmp/metadata \
+        "$ALTROOT/usr/lib/digitalocean"
+    chmod 0755 "$ALTROOT/usr/lib/digitalocean"
 
-    log "... fixing up SSH configuration ... "
+    #
+    # Include rsync in the image so that it is easier to bootstrap other
+    # configuration and image management systems in the guest via SSH.
+    #
+    log "...installing rsync"
+    pkg -R "$ALTROOT" install network/rsync
+
+    log "...enabling SSH with public key"
     mkdir "$ALTROOT/root/.ssh"
     sed -i -e 's%^PermitRootLogin.*%PermitRootLogin without-password%' \
         "$ALTROOT/etc/ssh/sshd_config"
 
+    log "...decreasing boot delay"
+    printf 'autoboot_delay=1\n' >> "$ALTROOT/boot/loader.conf.local"
+
+    #
     # XXX Can we not just fix this before boxing it up?
+    #
+    log "...fixing rpool mount directory"
     Postboot 'zfs set mountpoint=/rpool rpool'
     Postboot 'rmdir /HVMdigitaloceanrpool || true'
 }
